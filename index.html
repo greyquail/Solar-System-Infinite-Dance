@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solar System Moon Dance</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background: radial-gradient(ellipse at center, #000428 0%, #000 70%);
+      overflow: hidden; 
+      font-family: monospace;
+    }
+    canvas { 
+      display: block; 
+      cursor: grab;
+    }
+    canvas:active { cursor: grabbing; }
+    #info {
+      position: absolute; top: 10px; left: 10px; color: #fff;
+      font-size: 12px; background: rgba(0,0,0,0.5); padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="info">
+    Mouse: Pan/Zoom | Planets glow with dancing moons
+  </div>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let w = canvas.width = window.innerWidth;
+    let h = canvas.height = window.innerHeight;
+    
+    // Camera
+    let cam = { x: 0, y: 0, zoom: 0.3 };
+    
+    // Resize
+    window.addEventListener('resize', () => {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    });
+    
+    // Mouse controls
+    let mx = 0, my = 0, isDown = false;
+    canvas.addEventListener('mousedown', (e) => { isDown = true; });
+    canvas.addEventListener('mouseup', () => { isDown = false; });
+    canvas.addEventListener('mousemove', (e) => {
+      mx = (e.clientX / w - 0.5) / cam.zoom - cam.x;
+      my = (0.5 - e.clientY / h) / cam.zoom - cam.y;
+      if (isDown) {
+        cam.x += (e.movementX / w) / cam.zoom;
+        cam.y -= (e.movementY / h) / cam.zoom;
+      }
+    });
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      cam.zoom *= e.deltaY > 0 ? 0.9 : 1.1;
+      cam.zoom = Math.max(0.01, Math.min(5, cam.zoom));
+    });
+    
+    // Solar System: planets with organic "dancing" moons (no circular orbits)
+    const bodies = [
+      // Sun (central glow)
+      { type: 'sun', x: 0, y: 0, r: 20, glow: 80, color: '#ffd700', moons: [] },
+      
+      // Mercury (no moons)
+      { type: 'planet', name: 'Mercury', x: 0, y: 0, r: 3, color: '#a9a9a9', 
+        px: 80, py: 0, angle: 0, speed: 0.04, moons: [] },
+      
+      // Venus (no moons)  
+      { type: 'planet', name: 'Venus', x: 0, y: 0, r: 5, color: '#ffc649',
+        px: 120, py: 0, angle: 0, speed: 0.025, moons: [] },
+      
+      // Earth + Moon dance
+      { type: 'planet', name: 'Earth', x: 0, y: 0, r: 6, color: '#6bb6ff',
+        px: 180, py: 0, angle: 0, speed: 0.02, 
+        moons: [{ r: 2, color: '#c0c0c0', dist: 12, angle: 0, speed: 0.12, sway: 0.3 }] },
+      
+      // Mars + Phobos/Deimos wavy dance
+      { type: 'planet', name: 'Mars', x: 0, y: 0, r: 5, color: '#cd5c5c',
+        px: 240, py: 0, angle: 0, speed: 0.015,
+        moons: [
+          { r: 1.5, color: '#8b4513', dist: 8, angle: 0, speed: 0.25, sway: 0.4 },
+          { r: 1, color: '#a0522d', dist: 12, angle: Math.PI, speed: -0.18, sway: 0.2 }
+        ] },
+      
+      // Jupiter + 4 Galilean moons (wild organic dance)
+      { type: 'planet', name: 'Jupiter', x: 0, y: 0, r: 14, color: '#d8ca9d',
+        px: 380, py: 0, angle: 0, speed: 0.008,
+        moons: [
+          { r: 2.5, color: '#ffff99', dist: 22, angle: 0, speed: 0.09, sway: 0.25 },     // Io
+          { r: 2, color: '#add8e6', dist: 28, angle: Math.PI/2, speed: 0.07, sway: 0.2 }, // Europa
+          { r: 2.2, color: '#dda0dd', dist: 35, angle: Math.PI, speed: 0.05, sway: 0.15 }, // Ganymede
+          { r: 1.8, color: '#f0e68c', dist: 42, angle: Math.PI*1.5, speed: 0.035, sway: 0.1 } // Callisto
+        ] },
+      
+      // Saturn + Titan/Enceladus figure-8 dance
+      { type: 'planet', name: 'Saturn', x: 0, y: 0, r: 12, color: '#f4d03f',
+        px: 520, py: 0, angle: 0, speed: 0.006,
+        moons: [
+          { r: 3, color: '#ffcc99', dist: 25, angle: 0, speed: 0.04, sway: 0.35 },     // Titan
+          { r: 1.5, color: '#b0e0e6', dist: 18, angle: Math.PI, speed: -0.06, sway: 0.25 } // Enceladus
+        ] },
+      
+      // Uranus + Titania/Miranda wavy patterns
+      { type: 'planet', name: 'Uranus', x: 0, y: 0, r: 8, color: '#4fd0e7',
+        px: 680, py: 0, angle: 0, speed: 0.004,
+        moons: [
+          { r: 2, color: '#87ceeb', dist: 20, angle: 0, speed: 0.03, sway: 0.3 },
+          { r: 1.5, color: '#add8e6', dist: 28, angle: Math.PI/2, speed: 0.022, sway: 0.2 }
+        ] },
+      
+      // Neptune + Triton retrograde dance
+      { type: 'planet', name: 'Neptune', x: 0, y: 0, r: 9, color: '#4b70dd',
+        px: 850, py: 0, angle: 0, speed: 0.003,
+        moons: [
+          { r: 2.2, color: '#4169e1', dist: 22, angle: 0, speed: -0.045, sway: 0.28 } // Triton (retrograde)
+        ] }
+    ];
+    
+    let time = 0;
+    
+    // Trail buffers for moon dances (persistent glow trails)
+    bodies.forEach((b, i) => {
+      if (b.moons) b.moons.forEach(m => {
+        m.trail = [];
+        m.maxTrail = 200;
+      });
+    });
+    
+    function animate() {
+      ctx.save();
+      ctx.translate(w/2 + cam.x * cam.zoom * w, h/2 - cam.y * cam.zoom * h);
+      ctx.scale(cam.zoom * w * 0.8, cam.zoom * w * 0.8);
+      
+      // Fade trails
+      ctx.fillStyle = 'rgba(0,0,20,0.1)';
+      ctx.fillRect(-2000, -2000, 4000, 4000);
+      
+      time += 0.016;
+      
+      bodies.forEach(body => {
+        if (body.type === 'sun') {
+          // Glowing sun
+          const g = ctx.createRadialGradient(body.x, body.y, 0, body.x, body.y, body.glow);
+          g.addColorStop(0, body.color);
+          g.addColorStop(0.5, body.color + '66');
+          g.addColorStop(1, 'rgba(255,255,100,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(body.x, body.y, body.glow, 0, Math.PI * 2);
+          ctx.fill();
+          return;
+        }
+        
+        // Update planet position (elliptical organic motion)
+        body.angle += body.speed;
+        const ecc = 0.1; // Slight eccentricity
+        const rad = body.px * (1 + ecc * Math.sin(body.angle * 3));
+        body.x = Math.cos(body.angle) * rad + Math.sin(body.angle * 2.1) * 15;
+        body.y = Math.sin(body.angle) * rad + Math.cos(body.angle * 1.7) * 12;
+        
+        // Planet glow
+        const pg = ctx.createRadialGradient(body.x, body.y, 0, body.x, body.y, body.r * 3);
+        pg.addColorStop(0, body.color);
+        pg.addColorStop(0.7, body.color + '88');
+        pg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = pg;
+        ctx.beginPath();
+        ctx.arc(body.x, body.y, body.r * 3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw planet
+        ctx.shadowColor = body.color;
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = body.color;
+        ctx.beginPath();
+        ctx.arc(body.x, body.y, body.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        // Update & draw dancing moons (organic wavy motion, NO CIRCLES)
+        if (body.moons) {
+          body.moons.forEach(moon => {
+            // Organic dance: wavy, non-circular paths around planet
+            moon.angle += moon.speed;
+            const swayX = Math.sin(time * 2.3 + moon.angle * 1.7) * moon.sway;
+            const swayY = Math.cos(time * 1.9 + moon.angle * 2.1) * moon.sway * 0.7;
+            moon.mx = body.x + Math.cos(moon.angle) * moon.dist + swayX * 8;
+            moon.my = body.y + Math.sin(moon.angle) * moon.dist + swayY * 8;
+            
+            // Moon trail (persistent dance pattern)
+            moon.trail.push({ x: moon.mx, y: moon.my });
+            if (moon.trail.length > moon.maxTrail) moon.trail.shift();
+            
+            // Draw moon trail
+            ctx.strokeStyle = moon.color + '44';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.shadowColor = moon.color;
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            moon.trail.forEach((p, i) => {
+              if (i === 0) ctx.moveTo(p.x, p.y);
+              else ctx.lineTo(p.x, p.y);
+            });
+            ctx.stroke();
+            
+            // Draw moon
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = moon.color;
+            ctx.beginPath();
+            ctx.arc(moon.mx, moon.my, moon.r, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        }
+      });
+      
+      ctx.restore();
+      requestAnimationFrame(animate);
+    }
+    
+    animate();
+  </script>
+</body>
+</html>
